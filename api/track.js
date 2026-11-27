@@ -13,8 +13,22 @@ const esc = s => String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&
 const dec = s => { try { return decodeURIComponent(s || ''); } catch (e) { return s || ''; } };
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).end();
   const token = process.env.BOT_TOKEN, admin = process.env.ADMIN_ID;
+  if (req.method === 'GET') {
+    // Tekshiruv: /api/track?test=ADMIN_ID_RAQAMINGIZ  (ishlagach shu blokni o'chirib tashlash mumkin)
+    if (admin && req.query && req.query.test === String(admin).trim() && token) {
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${String(token).trim()}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: String(admin).trim(), text: '✅ Test xabar: bot ishlayapti' })
+        });
+        const j = await r.json();
+        return res.status(200).json({ BOT_TOKEN: true, ADMIN_ID: true, telegram: j });
+      } catch (e) { return res.status(200).json({ error: String(e) }); }
+    }
+    return res.status(200).json({ ok: true, BOT_TOKEN: !!token, ADMIN_ID: !!admin, SITE_HOST: process.env.SITE_HOST || null });
+  }
+  if (req.method !== 'POST') return res.status(405).end();
   if (!token || !admin) return res.status(500).end();
 
   let b = req.body;
@@ -43,11 +57,12 @@ module.exports = async (req, res) => {
   ].filter(Boolean).join('\n');
 
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const r = await fetch(`https://api.telegram.org/bot${String(token).trim()}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: admin, text, parse_mode: 'HTML', disable_web_page_preview: true })
+      body: JSON.stringify({ chat_id: String(admin).trim(), text, parse_mode: 'HTML', disable_web_page_preview: true })
     });
-  } catch (e) {}
+    if (!r.ok) console.error('Telegram xato:', await r.text());
+  } catch (e) { console.error(e); }
   res.status(200).json({ ok: true });
 };
